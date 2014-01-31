@@ -1,5 +1,5 @@
 name    'inkblot/riakcs'
-version '1.0.0'
+version '1.1.0'
 source  'git://github.com/inkblot/puppet-riakcs'
 author  'inkblot'
 license 'Apache 2.0'
