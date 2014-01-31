@@ -4,23 +4,38 @@ class riakcs (
     $package_name        = $::riakcs::params::package_name,
     $version             = $::riakcs::params::version,
     $service_name        = $::riakcs::params::service_name,
-    $service_ensure      = $::riakcs::params::service_ensure,
     $cs_ipaddress        = $::riakcs::params::cs_ipaddress,
     $riak_ipaddress      = $::riakcs::params::riak_ipaddress,
     $stanchion_ipaddress = $::riakcs::params::stanchion_ipaddress,
     $vm_node_name        = $::riakcs::params::vm_node_name,
     $vm_ipaddress        = $::riakcs::params::vm_ipaddress,
     $admin_email         = $::riakcs::params::admin_email,
+    $admin_key           = $::riakcs::params::admin_key,
+    $admin_secret        = $::riakcs::params::admin_secret,
+    $create_admin        = $::riakcs::params::create_admin,
 ) inherits riakcs::params {
-    $admin_key = $::riakcs_admin_key ? {
-        '' => 'admin-key',
-        default => $::riakcs_admin_key,
+    # Precedence:
+    # The first puppetting of the first riakcs node in a cluster will create 
+    # the admin user and capture the credentials in facts.  This *must* be the
+    # stanchion node.  The first puppetting of subsequent nodes in the cluster
+    # will fail unless either:
+    # 1: The hard-coded facts on the first node have been copied to the
+    #    subsequent nodes
+    # 2: The fact values have been assigned to the admin_key and admin_secret
+    #    parameters of this class.
+    if $::riakcs_admin_key != '' and $::riakcs_admin_secret != '' {
+        $_admin_key = $::riakcs_admin_key
+        $_admin_secret = $::riakcs_admin_secret
+    } elsif $admin_key != '' and $admin_secret != '' {
+        $_admin_key = $admin_key
+        $_admin_secret = $admin_secret
+    } else {
+        $_admin_key = 'admin-key'
+        $_admin_secret = 'admin-secret'
     }
-    $admin_secret = $::riakcs_admin_secret ? {
-        '' => 'admin-secret',
-        default => $::riakcs_admin_secret,
-    }
-    $anonymous_user_creation = $admin_key ? {
+
+    # The default value for the admin_key means we're without an admin user
+    $anonymous_user_creation = $_admin_key ? {
         'admin-key' => 'true',
         default => 'false',
     }
@@ -59,15 +74,20 @@ class riakcs (
     }
 
     service { 'riak-cs':
-        name   => $service_name,
-        ensure => $service_ensure,
+        name    => $service_name,
+        ensure  => running,
+        require => Service['riak'],
     }
 
-    if $service_ensure == 'running' and $admin_key == 'admin-key' {
-        class { 'riakcs::create_admin':
-            admin_email         => $admin_email,
-            cs_ipaddress        => $cs_ipaddress,
-            stanchion_ipaddress => $stanchion_ipaddress,
+    if $_admin_key == 'admin-key' {
+        if $create_admin {
+            class { 'riakcs::create_admin':
+                admin_email         => $admin_email,
+                cs_ipaddress        => $cs_ipaddress,
+                stanchion_ipaddress => $stanchion_ipaddress,
+            }
+        } else {
+            fail("No admin key and admin secret. Get these values from the stanchion node's riakcs_admin_key and riakcs_admin_secret facts and use them to set this class's admin_key and admin_secret parameters")
         }
     }
 }
