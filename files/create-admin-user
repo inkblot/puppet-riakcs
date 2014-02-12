@@ -21,20 +21,22 @@ def create_admin_user(name, email, ipaddress, port)
 end
 
 admin_key, admin_secret = create_admin_user('admin user', ARGV[0], ARGV[1], 8080)
-IO.write('/etc/facter/facts.d/riakcs.yaml', {
-    'riakcs_admin_key' => admin_key,
-    'riakcs_admin_secret' => admin_secret
-}.to_yaml)
+File.open('/etc/facter/facts.d/riakcs.yaml', 'w') do |f|
+    f.write({
+        'riakcs_admin_key' => admin_key,
+        'riakcs_admin_secret' => admin_secret
+    }.to_yaml)
+end
 
 temp = Tempfile.new('app.config')
 File.open('/etc/riak-cs/app.config', 'r') do |file|
     file.each_line do |line|
         case line
-		    when /{anonymous_user_creation, true},/
+		    when /\{anonymous_user_creation, true\},/
 			    temp.puts "              {anonymous_user_creation, false},\n"
-		    when /{admin_key, "admin-key"},/
+		    when /\{admin_key, "admin-key"\},/
 			    temp.puts "              {admin_key, \"#{admin_key}\"},\n"
-            when /{admin_secret, "admin-secret"},/
+            when /\{admin_secret, "admin-secret"\},/
 			    temp.puts "              {admin_secret, \"#{admin_secret}\"},\n"
 		    else
 			    temp.puts line
